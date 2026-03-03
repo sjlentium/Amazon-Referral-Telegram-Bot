@@ -95,8 +95,8 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Controllo validità geografica dello store
             if not is_italiano:
                 messaggio_errore = (
-                    f"⚠️ Sembra che tu abbia inviato un link di uno store estero.\n"
-                    f"Per supportarci, ti chiediamo di utilizzare un link di <a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a>."
+                    f"⚠️ Sembra che tu abbia inviato un link di uno <b>store estero</b>.\n"
+                    f"Per supportarci, ti chiediamo di utilizzare un link di <b><a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a></b>."
                 )
                 await update.message.reply_text(
                     messaggio_errore,
