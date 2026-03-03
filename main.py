@@ -10,23 +10,32 @@ TOKEN_TELEGRAM = "8298053839:AAFa-T_6tgnHn2uyv4lekNApNM5whNqaayI" # TOKEN REVOCA
 REFERRAL_TAG = "nerdalquadr0b-21"
 # ----------------------
 
-async def estrai_asin(url: str) -> str:
+async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     """
-    Valida il dominio, risolve gli short link in modo asincrono ed estrae l'ASIN a 10 caratteri.
+    Valida il dominio, risolve gli short link in modo asincrono,
+    estrae l'ASIN a 10 caratteri e verifica se lo store è italiano.
+    Restituisce una tupla: (asin, is_italiano).
     """
     try:
         parsed_url = urlparse(url)
         dominio = parsed_url.netloc.lower()
     except Exception:
-        return None
+        return None, False
 
-    # Validazione rigorosa del dominio per evitare spoofing
-    domini_validi_amazon = ["amazon.it", "www.amazon.it", "amazon.com", "www.amazon.com"]
+    # Inclusi domini esteri per poter intercettare l'errore e avvisare l'utente
+    domini_validi_amazon = [
+        "amazon.it", "www.amazon.it", 
+        "amazon.com", "www.amazon.com", 
+        "amazon.co.uk", "www.amazon.co.uk", 
+        "amazon.de", "amazon.fr", "amazon.es"
+    ]
     domini_short = ["amzn.to", "amzn.eu"]
     
     # Se il dominio non è tra quelli consentiti, interrompiamo l'elaborazione
     if not any(dominio.endswith(d) for d in domini_validi_amazon + domini_short):
-        return None
+        return None, False
+
+    url_finale = url
 
     # Fase 1: Risoluzione short link in modo ASINCRONO non bloccante
     if any(dominio.endswith(d) for d in domini_short):
@@ -34,17 +43,23 @@ async def estrai_asin(url: str) -> str:
             async with httpx.AsyncClient() as client:
                 # Seguiamo il redirect asincronamente
                 response = await client.head(url, follow_redirects=True, timeout=5.0)
-                url = str(response.url)
+                url_finale = str(response.url)
+                # Aggiorniamo il dominio in base all'URL risolto (es. amzn.to -> amazon.com)
+                dominio = urlparse(url_finale).netloc.lower()
         except httpx.RequestError:
-            return None
+            return None, False
 
-    # Fase 2: Estrazione ASIN tramite Regex (cattura ASIN alfanumerici e ISBN a 10 cifre)
+    # Verifichiamo se lo store di destinazione è italiano
+    is_italiano = dominio.endswith("amazon.it")
+
+    # Fase 2: Estrazione ASIN tramite Regex
     pattern = r"(?:/dp/|/gp/product/|/exec/obidos/ASIN/|/o/ASIN/|/as/|/p/)(?P<asin>[A-Z0-9]{10})"
-    match = re.search(pattern, url, re.IGNORECASE)
+    match = re.search(pattern, url_finale, re.IGNORECASE)
     
     if match:
-        return match.group("asin")
-    return None
+        return match.group("asin"), is_italiano
+        
+    return None, False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gestisce il comando /start inviando il messaggio di benvenuto."""
@@ -61,7 +76,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Intercetta i messaggi, esegue il parsing sicuro degli URL e restituisce il link pulito.
+    Intercetta i messaggi, esegue il parsing sicuro degli URL e restituisce il link pulito
+    o un avviso se lo store non è italiano.
     """
     testo_utente = update.message.text
     
@@ -73,15 +89,28 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     for url in urls_trovati:
         # Passiamo l'URL alla funzione asincrona di validazione ed estrazione
-        asin = await estrai_asin(url)
+        asin, is_italiano = await estrai_asin_e_dominio(url)
         
         if asin:
+            # Controllo validità geografica dello store
+            if not is_italiano:
+                messaggio_errore = (
+                    f"⚠️ Sembra che tu abbia inviato un link di uno store estero.\n"
+                    f"Per supportarci, ti chiediamo di utilizzare un link di <a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a>."
+                )
+                await update.message.reply_text(
+                    messaggio_errore,
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True
+                )
+                continue # Passa al prossimo URL se ce n'è più di uno nel messaggio
+
             # Fase 3: Ricostruzione normalizzata del link
             link_pulito = f"https://www.amazon.it/dp/{asin}?tag={REFERRAL_TAG}"
             
             messaggio_finale = (
                 f"Link ottimizzato:\n{link_pulito}\n\n"
-                f"🔗 Manda un altro link quando vuoi, in questo modo contribuirai gratuitamente a mantenere in vita <a href=\"https://nerdalquadrato.it\">i nostri progetti</a> di @nerdalquadrato!\n\n"
+                f"🔗 Manda un altro link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> quando vuoi, in questo modo contribuirai gratuitamente a mantenere in vita <a href=\"https://nerdalquadrato.it\">i nostri progetti</a> di @nerdalquadrato!\n\n"
                 f"<i>📌 In qualità di Affiliati Amazon, riceviamo un guadagno dagli acquisti idonei.</i>"
             )
             
