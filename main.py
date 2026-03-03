@@ -64,8 +64,8 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gestisce il comando /start inviando il messaggio di benvenuto."""
     messaggio_benvenuto = (
-        f"🔗 Mandami il link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> desiderato!\n\n"
-        f"In questo modo contribuirai gratuitamente a mantenere in vita <a href=\"https://nerdalquadrato.it\">i nostri progetti</a> di @nerdalquadrato!\n\n"
+        f"🔗 <b>Mandami il link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> desiderato!</b>\n\n"
+        f"In questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
         f"<i>📌 In qualità di Affiliati Amazon, riceviamo un guadagno dagli acquisti idonei.</i>"
     )
     await update.message.reply_text(
@@ -109,8 +109,9 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             link_pulito = f"https://www.amazon.it/dp/{asin}?tag={REFERRAL_TAG}"
             
             messaggio_finale = (
-                f"Link ottimizzato:\n{link_pulito}\n\n"
-                f"🔗 Manda un altro link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> quando vuoi, in questo modo contribuirai gratuitamente a mantenere in vita <a href=\"https://nerdalquadrato.it\">i nostri progetti</a> di @nerdalquadrato!\n\n"
+                f"✅ <b>Link Ottimizzato!</b>\n\n"
+                f"🛒 Acquista qui: <i>{link_pulito}</i>\n\n"
+                f"🔗 Manda un altro link quando vuoi, in questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
                 f"<i>📌 In qualità di Affiliati Amazon, riceviamo un guadagno dagli acquisti idonei.</i>"
             )
             
