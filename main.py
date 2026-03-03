@@ -87,7 +87,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # --- FEEDBACK 1: Nessun link trovato nel messaggio ---
     if not urls_trovati:
         await update.message.reply_text(
-            "❌ <b>Nessun link rilevato.</b>\nAssicurati di inviarmi un link Amazon valido in modo che io possa processarlo!",
+            "❌ <b>Nessun link rilevato.</b>\n\nAssicurati di inviarmi un link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> valido in modo che io possa processarlo!",
             parse_mode=ParseMode.HTML
         )
         return
@@ -129,7 +129,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             else:
                 # --- FEEDBACK 2: Link non supportato o ASIN inesistente ---
                 await update.message.reply_text(
-                    f"❌ <b>Link non supportato.</b>\nNon sono riuscito a trovare un prodotto Amazon valido in questo link:\n<i>{url}</i>",
+                    f"❌ <b>Link non supportato.</b>\nNon sono riuscito a trovare un prodotto <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> valido in questo link:\n<i>{url}</i>",
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
