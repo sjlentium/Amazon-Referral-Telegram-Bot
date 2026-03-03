@@ -8,6 +8,7 @@ from telegram.constants import ParseMode
 # --- CONFIGURAZIONE ---
 TOKEN_TELEGRAM = "8298053839:AAFa-T_6tgnHn2uyv4lekNApNM5whNqaayI" # TOKEN REVOCATO E SOSTITUITO
 REFERRAL_TAG = "nerdalquadr0b-21"
+MAX_URLS_PER_MESSAGGIO = 5
 # ----------------------
 
 async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
@@ -41,12 +42,17 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     if any(dominio.endswith(d) for d in domini_short):
         try:
             async with httpx.AsyncClient() as client:
-                # Seguiamo il redirect asincronamente
-                response = await client.head(url, follow_redirects=True, timeout=5.0)
+                # Seguiamo il redirect asincronamente limitando i tentativi e il timeout
+                response = await client.head(
+                    url, 
+                    follow_redirects=True, 
+                    timeout=httpx.Timeout(3.0),
+                    max_redirects=3
+                )
                 url_finale = str(response.url)
                 # Aggiorniamo il dominio in base all'URL risolto (es. amzn.to -> amazon.com)
                 dominio = urlparse(url_finale).netloc.lower()
-        except httpx.RequestError:
+        except (httpx.RequestError, httpx.TooManyRedirects):
             return None, False
 
     # Verifichiamo se lo store di destinazione è italiano
@@ -83,6 +89,14 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # Identifica tutti gli URL presenti nel testo
     urls_trovati = re.findall(r'(https?://[^\s]+)', testo_utente)
+
+    # Imposta un limite massimo di URL da processare
+    if len(urls_trovati) > MAX_URLS_PER_MESSAGGIO:
+        await update.message.reply_text(
+            f"⚠️ <b>Troppi link!</b>\n\nPer evitare sovraccarichi, elaborerò solo i primi {MAX_URLS_PER_MESSAGGIO} link.",
+            parse_mode=ParseMode.HTML
+        )
+        urls_trovati = urls_trovati[:MAX_URLS_PER_MESSAGGIO]
     
     # --- FEEDBACK 1: Nessun link trovato nel messaggio ---
     if not urls_trovati:
@@ -149,7 +163,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processa_messaggio))
     
-    print("Bot avviato e in ascolto...")
+    print("Bot avviato.")
     application.run_polling()
 
 if __name__ == '__main__':
