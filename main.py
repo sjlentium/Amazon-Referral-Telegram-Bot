@@ -6,7 +6,10 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 from telegram.constants import ParseMode
 
 # --- CONFIGURAZIONE ---
-TOKEN_TELEGRAM = "8298053839:AAFa-T_6tgnHn2uyv4lekNApNM5whNqaayI" # TOKEN REVOCATO E SOSTITUITO
+TOKEN_TELEGRAM = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TOKEN_TELEGRAM:
+    raise ValueError("Errore: TELEGRAM_BOT_TOKEN non impostato nelle variabili d'ambiente.")
+
 REFERRAL_TAG = "nerdalquadr0b-21"
 MAX_URLS_PER_MESSAGGIO = 5
 # ----------------------
