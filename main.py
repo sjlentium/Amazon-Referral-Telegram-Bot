@@ -77,48 +77,69 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Intercetta i messaggi, esegue il parsing sicuro degli URL e restituisce il link pulito
-    o un avviso se lo store non è italiano.
+    o un avviso se lo store non è italiano. Include la gestione degli errori per dare sempre feedback.
     """
     testo_utente = update.message.text
     
     # Identifica tutti gli URL presenti nel testo
     urls_trovati = re.findall(r'(https?://[^\s]+)', testo_utente)
     
+    # --- FEEDBACK 1: Nessun link trovato nel messaggio ---
     if not urls_trovati:
+        await update.message.reply_text(
+            "❌ <b>Nessun link rilevato.</b>\nAssicurati di inviarmi un link Amazon valido in modo che io possa processarlo!",
+            parse_mode=ParseMode.HTML
+        )
         return
 
     for url in urls_trovati:
-        # Passiamo l'URL alla funzione asincrona di validazione ed estrazione
-        asin, is_italiano = await estrai_asin_e_dominio(url)
-        
-        if asin:
-            # Controllo validità geografica dello store
-            if not is_italiano:
-                messaggio_errore = (
-                    f"⚠️ Sembra che tu abbia inviato un link di uno <b>store estero</b>.\n"
-                    f"Per supportarci, ti chiediamo di utilizzare un link di <b><a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a></b>."
+        try:
+            # Passiamo l'URL alla funzione asincrona di validazione ed estrazione
+            asin, is_italiano = await estrai_asin_e_dominio(url)
+            
+            if asin:
+                # Controllo validità geografica dello store
+                if not is_italiano:
+                    messaggio_errore = (
+                        f"⚠️ Sembra che tu abbia inviato un link di uno <b>store estero</b>.\n"
+                        f"Per supportarci, ti chiediamo di utilizzare un link di <b><a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a></b>."
+                    )
+                    await update.message.reply_text(
+                        messaggio_errore,
+                        parse_mode=ParseMode.HTML,
+                        disable_web_page_preview=True
+                    )
+                    continue # Passa al prossimo URL se ce n'è più di uno nel messaggio
+
+                # Fase 3: Ricostruzione normalizzata del link
+                link_pulito = f"https://www.amazon.it/dp/{asin}?tag={REFERRAL_TAG}"
+                
+                messaggio_finale = (
+                    f"✅ <b>Link Ottimizzato!</b>\n\n"
+                    f"🛒 Acquista qui: <i>{link_pulito}</i>\n\n"
+                    f"🔗 Manda un altro link quando vuoi, in questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
+                    f"<i>📌 In qualità di Affiliati Amazon, riceviamo un guadagno dagli acquisti idonei.</i>"
                 )
+                
                 await update.message.reply_text(
-                    messaggio_errore,
+                    messaggio_finale, 
+                    parse_mode=ParseMode.HTML, 
+                    disable_web_page_preview=True
+                )
+            else:
+                # --- FEEDBACK 2: Link non supportato o ASIN inesistente ---
+                await update.message.reply_text(
+                    f"❌ <b>Link non supportato.</b>\nNon sono riuscito a trovare un prodotto Amazon valido in questo link:\n<i>{url}</i>",
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
-                continue # Passa al prossimo URL se ce n'è più di uno nel messaggio
-
-            # Fase 3: Ricostruzione normalizzata del link
-            link_pulito = f"https://www.amazon.it/dp/{asin}?tag={REFERRAL_TAG}"
-            
-            messaggio_finale = (
-                f"✅ <b>Link Ottimizzato!</b>\n\n"
-                f"🛒 Acquista qui: <i>{link_pulito}</i>\n\n"
-                f"🔗 Manda un altro link quando vuoi, in questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
-                f"<i>📌 In qualità di Affiliati Amazon, riceviamo un guadagno dagli acquisti idonei.</i>"
-            )
-            
+                
+        except Exception as e:
+            # --- FEEDBACK 3: Errore di sistema imprevisto ---
+            print(f"Errore imprevisto durante l'elaborazione del link {url}: {e}")
             await update.message.reply_text(
-                messaggio_finale, 
-                parse_mode=ParseMode.HTML, 
-                disable_web_page_preview=True
+                "⚠️ <b>Ops! Qualcosa è andato storto.</b>\nSi è verificato un errore durante l'elaborazione del tuo link. Riprova più tardi.",
+                parse_mode=ParseMode.HTML
             )
 
 def main():
@@ -128,7 +149,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processa_messaggio))
     
-    print("Bot avviato.")
+    print("Bot avviato e in ascolto...")
     application.run_polling()
 
 if __name__ == '__main__':
