@@ -45,17 +45,14 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     if any(dominio.endswith(d) for d in domini_short):
         try:
             async with httpx.AsyncClient() as client:
-                # Seguiamo il redirect asincronamente limitando i tentativi e il timeout
-                response = await client.head(
+                response = await client.get(
                     url, 
                     follow_redirects=True, 
-                    timeout=httpx.Timeout(3.0),
-                    max_redirects=3
+                    timeout=5.0
                 )
                 url_finale = str(response.url)
-                # Aggiorniamo il dominio in base all'URL risolto (es. amzn.to -> amazon.com)
                 dominio = urlparse(url_finale).netloc.lower()
-        except (httpx.RequestError, httpx.TooManyRedirects):
+        except Exception:
             return None, False
 
     # Verifichiamo se lo store di destinazione è italiano
