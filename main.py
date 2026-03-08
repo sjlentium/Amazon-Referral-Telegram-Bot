@@ -1,3 +1,4 @@
+import os
 import re
 import httpx
 from urllib.parse import urlparse
@@ -20,10 +21,13 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     estrae l'ASIN a 10 caratteri e verifica se lo store è italiano.
     Restituisce una tupla: (asin, is_italiano).
     """
+    print(f"[LOG] Avvio estrazione ASIN e dominio per l'URL: {url}")
     try:
         parsed_url = urlparse(url)
         dominio = parsed_url.netloc.lower()
-    except Exception:
+        print(f"[LOG] Dominio parsato: {dominio}")
+    except Exception as e:
+        print(f"[LOG] Errore nel parsing dell'URL: {e}")
         return None, False
 
     # Inclusi domini esteri per poter intercettare l'errore e avvisare l'utente
@@ -37,12 +41,14 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     
     # Se il dominio non è tra quelli consentiti, interrompiamo l'elaborazione
     if not any(dominio.endswith(d) for d in domini_validi_amazon + domini_short):
+        print(f"[LOG] Dominio non valido o non supportato: {dominio}")
         return None, False
 
     url_finale = url
 
     # Fase 1: Risoluzione short link in modo ASINCRONO non bloccante
     if any(dominio.endswith(d) for d in domini_short):
+        print(f"[LOG] Rilevato short link, avvio risoluzione: {url}")
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -52,23 +58,32 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
                 )
                 url_finale = str(response.url)
                 dominio = urlparse(url_finale).netloc.lower()
-        except Exception:
+                print(f"[LOG] Short link risolto. URL finale: {url_finale} | Dominio finale: {dominio}")
+        except Exception as e:
+            print(f"[LOG] Errore durante la risoluzione dello short link: {e}")
             return None, False
 
     # Verifichiamo se lo store di destinazione è italiano
     is_italiano = dominio.endswith("amazon.it")
+    print(f"[LOG] Lo store è italiano? {is_italiano}")
 
     # Fase 2: Estrazione ASIN tramite Regex
     pattern = r"(?:/dp/|/gp/product/|/exec/obidos/ASIN/|/o/ASIN/|/as/|/p/)(?P<asin>[A-Z0-9]{10})"
     match = re.search(pattern, url_finale, re.IGNORECASE)
     
     if match:
-        return match.group("asin"), is_italiano
+        asin_trovato = match.group("asin")
+        print(f"[LOG] ASIN estratto con successo: {asin_trovato}")
+        return asin_trovato, is_italiano
         
+    print("[LOG] Nessun ASIN trovato nell'URL finale.")
     return None, False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gestisce il comando /start inviando il messaggio di benvenuto."""
+    user = update.effective_user
+    print(f"[LOG] Comando /start ricevuto dall'utente: {user.username or user.id}")
+    
     messaggio_benvenuto = (
         f"🔗 <b>Mandami il link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> desiderato!</b>\n\n"
         f"In questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
@@ -79,6 +94,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML, 
         disable_web_page_preview=True
     )
+    print("[LOG] Messaggio di benvenuto inviato.")
 
 async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -86,12 +102,17 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
     o un avviso se lo store non è italiano. Include la gestione degli errori per dare sempre feedback.
     """
     testo_utente = update.message.text
+    user = update.effective_user
+    print(f"\n[LOG] --- Nuovo messaggio da {user.username or user.id} ---")
+    print(f"[LOG] Testo ricevuto: {testo_utente}")
     
     # Identifica tutti gli URL presenti nel testo
     urls_trovati = re.findall(r'(https?://[^\s]+)', testo_utente)
+    print(f"[LOG] URL trovati nel messaggio: {len(urls_trovati)}")
 
     # Imposta un limite massimo di URL da processare
     if len(urls_trovati) > MAX_URLS_PER_MESSAGGIO:
+        print(f"[LOG] Superato il limite di URL ({len(urls_trovati)} > {MAX_URLS_PER_MESSAGGIO}). Troncamento lista.")
         await update.message.reply_text(
             f"⚠️ <b>Troppi link!</b>\n\nPer evitare sovraccarichi, elaborerò solo i primi {MAX_URLS_PER_MESSAGGIO} link.",
             parse_mode=ParseMode.HTML
@@ -100,6 +121,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # --- FEEDBACK 1: Nessun link trovato nel messaggio ---
     if not urls_trovati:
+        print("[LOG] Nessun URL rilevato, invio messaggio di avviso.")
         await update.message.reply_text(
             "❌ <b>Nessun link rilevato.</b>\n\nAssicurati di inviarmi un link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> valido in modo che io possa processarlo!",
             parse_mode=ParseMode.HTML
@@ -107,6 +129,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     for url in urls_trovati:
+        print(f"\n[LOG] Processando l'URL: {url}")
         try:
             # Passiamo l'URL alla funzione asincrona di validazione ed estrazione
             asin, is_italiano = await estrai_asin_e_dominio(url)
@@ -114,6 +137,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if asin:
                 # Controllo validità geografica dello store
                 if not is_italiano:
+                    print(f"[LOG] Store estero rilevato per ASIN {asin}. Invio avviso all'utente.")
                     messaggio_errore = (
                         f"⚠️ Sembra che tu abbia inviato un link di uno <b>store estero</b>.\n"
                         f"Per supportarci, ti chiediamo di utilizzare un link di <b><a href=\"https://amzn.to/4cZjQYd\">Amazon Italia</a></b>."
@@ -127,6 +151,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
                 # Fase 3: Ricostruzione normalizzata del link
                 link_pulito = f"https://www.amazon.it/dp/{asin}?tag={REFERRAL_TAG}"
+                print(f"[LOG] Link ottimizzato generato: {link_pulito}")
                 
                 messaggio_finale = (
                     f"✅ <b>Link Ottimizzato!</b>\n\n"
@@ -140,8 +165,10 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     parse_mode=ParseMode.HTML, 
                     disable_web_page_preview=True
                 )
+                print("[LOG] Messaggio con link ottimizzato inviato con successo.")
             else:
                 # --- FEEDBACK 2: Link non supportato o ASIN inesistente ---
+                print(f"[LOG] ASIN inesistente o link non supportato: {url}")
                 await update.message.reply_text(
                     f"❌ <b>Link non supportato.</b>\nNon sono riuscito a trovare un prodotto <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> valido in questo link:\n<i>{url}</i>",
                     parse_mode=ParseMode.HTML,
@@ -150,7 +177,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
         except Exception as e:
             # --- FEEDBACK 3: Errore di sistema imprevisto ---
-            print(f"Errore imprevisto durante l'elaborazione del link {url}: {e}")
+            print(f"[LOG/ERRORE] Errore imprevisto durante l'elaborazione del link {url}: {e}")
             await update.message.reply_text(
                 "⚠️ <b>Ops! Qualcosa è andato storto.</b>\nSi è verificato un errore durante l'elaborazione del tuo link. Riprova più tardi.",
                 parse_mode=ParseMode.HTML
@@ -158,12 +185,13 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 def main():
     """Inizializza e avvia il bot in modalità polling."""
+    print("[LOG] Inizializzazione del bot in corso...")
     application = Application.builder().token(TOKEN_TELEGRAM).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processa_messaggio))
     
-    print("Bot avviato.")
+    print("[LOG] Bot avviato e in ascolto (polling)...")
     application.run_polling()
 
 if __name__ == '__main__':
