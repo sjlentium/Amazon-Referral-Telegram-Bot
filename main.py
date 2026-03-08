@@ -1,3 +1,4 @@
+import os
 import re
 import httpx
 from urllib.parse import urlparse
@@ -23,7 +24,8 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
     try:
         parsed_url = urlparse(url)
         dominio = parsed_url.netloc.lower()
-    except Exception:
+    except Exception as e:
+        print(f"[ERRORE DI SISTEMA] Fallito parsing dell'URL {url}: {e}")
         return None, False
 
     # Inclusi domini esteri per poter intercettare l'errore e avvisare l'utente
@@ -52,7 +54,8 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
                 )
                 url_finale = str(response.url)
                 dominio = urlparse(url_finale).netloc.lower()
-        except Exception:
+        except Exception as e:
+            print(f"[ERRORE DI SISTEMA] Fallita risoluzione HTTP dello short link {url}: {e}")
             return None, False
 
     # Verifichiamo se lo store di destinazione è italiano
@@ -69,6 +72,9 @@ async def estrai_asin_e_dominio(url: str) -> tuple[str, bool]:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gestisce il comando /start inviando il messaggio di benvenuto."""
+    user = update.effective_user
+    print(f"[RICHIESTA RICEVUTA] Comando /start da {user.username or user.id}")
+    
     messaggio_benvenuto = (
         f"🔗 <b>Mandami il link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> desiderato!</b>\n\n"
         f"In questo modo <b>contribuirai gratuitamente</b> a mantenere in vita i <a href=\"https://nerdalquadrato.it\">nostri progetti</a> di @nerdalquadrato!\n\n"
@@ -79,6 +85,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML, 
         disable_web_page_preview=True
     )
+    print(f"[RICHIESTA COMPLETATA] Comando /start da {user.username or user.id}")
 
 async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -86,6 +93,8 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
     o un avviso se lo store non è italiano. Include la gestione degli errori per dare sempre feedback.
     """
     testo_utente = update.message.text
+    user = update.effective_user
+    print(f"[RICHIESTA RICEVUTA] Messaggio da {user.username or user.id}")
     
     # Identifica tutti gli URL presenti nel testo
     urls_trovati = re.findall(r'(https?://[^\s]+)', testo_utente)
@@ -104,6 +113,7 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "❌ <b>Nessun link rilevato.</b>\n\nAssicurati di inviarmi un link <a href=\"https://amzn.to/4cZjQYd\">Amazon</a> valido in modo che io possa processarlo!",
             parse_mode=ParseMode.HTML
         )
+        print(f"[RICHIESTA COMPLETATA] Messaggio da {user.username or user.id}")
         return
 
     for url in urls_trovati:
@@ -150,11 +160,13 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 
         except Exception as e:
             # --- FEEDBACK 3: Errore di sistema imprevisto ---
-            print(f"Errore imprevisto durante l'elaborazione del link {url}: {e}")
+            print(f"[ERRORE DI SISTEMA] Eccezione imprevista con l'URL {url}: {e}")
             await update.message.reply_text(
                 "⚠️ <b>Ops! Qualcosa è andato storto.</b>\nSi è verificato un errore durante l'elaborazione del tuo link. Riprova più tardi.",
                 parse_mode=ParseMode.HTML
             )
+            
+    print(f"[RICHIESTA COMPLETATA] Messaggio da {user.username or user.id}")
 
 def main():
     """Inizializza e avvia il bot in modalità polling."""
@@ -163,7 +175,7 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processa_messaggio))
     
-    print("Bot avviato.")
+    print("Bot avviato e in ascolto...")
     application.run_polling()
 
 if __name__ == '__main__':
