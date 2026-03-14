@@ -8,7 +8,7 @@ Un bot Telegram asincrono scritto in Python che riceve link di prodotti Amazon, 
 * **Estrazione ASIN Precisa:** Utilizza le espressioni regolari (RegEx) per individuare il codice ASIN a 10 caratteri da qualsiasi tipologia di URL Amazon.
 * **Validazione Geografica:** Verifica che il prodotto appartenga allo store italiano (`amazon.it`). Se il link è estero, avvisa l'utente.
 * **Gestione Multi-Link:** Elabora fino a un massimo di 5 link contemporaneamente nello stesso messaggio per evitare sovraccarichi o spam.
-* **Logging Integrato:** Stampa a terminale data, ora e stato di ogni richiesta in ingresso, ignorando i log superflui e catturando solo le eccezioni di sistema.
+* **Logging Integrato:** Stampa a terminale data, ora e stato di ogni richiesta in ingresso.
 
 ## 🛠️ Requisiti
 
