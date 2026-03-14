@@ -1,6 +1,6 @@
 # 🛒 Amazon Affiliate Link Optimizer - Telegram Bot
 
-Un bot Telegram asincrono scritto in Python che riceve link di prodotti Amazon, ne estrae l'ASIN e restituisce un link pulito e ottimizzato con il tuo tag di affiliazione. Sviluppato per supportare la community di [nerdalquadrato.it](https://nerdalquadrato.it).
+Un bot Telegram asincrono che riceve link di prodotti Amazon, ne estrae l'ASIN e restituisce un link pulito e ottimizzato con il tuo tag di affiliazione. Sviluppato per supportare la community di [nerdalquadrato.it](https://nerdalquadrato.it).
 
 ## ✨ Funzionalità
 
