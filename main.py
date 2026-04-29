@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 from telegram import Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
 from telegram.constants import ParseMode
+import logging
+from telegram.error import NetworkError, TimedOut, TelegramError
 
 # --- CONFIGURAZIONE ---
 TOKEN_TELEGRAM = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -174,14 +176,52 @@ async def processa_messaggio(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
     log_console(f"[RICHIESTA COMPLETATA] Messaggio da {user.username or user.id}")
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Asynchronous error handler to intercept and manage exceptions during bot execution.
+    
+    This function analyzes the type of error raised by the python-telegram-bot library
+    and logs an appropriate, readable message instead of printing a raw traceback.
+    """
+    # Extract the exception object from the context
+    eccezione = context.error
+    
+    # CASE 1: Network-related errors (e.g., Bad Gateway, timeouts)
+    if isinstance(eccezione, NetworkError):
+        log_console(f"[NETWORK ERROR] Telegram API is unreachable or returned Bad Gateway: {eccezione}")
+        # Note: The library's updater will automatically attempt to reconnect.
+        
+    # CASE 2: Timeout errors specifically
+    elif isinstance(eccezione, TimedOut):
+        log_console(f"[TIMEOUT ERROR] The request to Telegram timed out: {eccezione}")
+        
+    # CASE 3: General Telegram API errors (e.g., unauthorized, bad request)
+    elif isinstance(eccezione, TelegramError):
+        log_console(f"[TELEGRAM API ERROR] An API error occurred: {eccezione}")
+        
+    # CASE 4: Any other unexpected Python exceptions
+    else:
+        log_console(f"[CRITICAL ERROR] An unexpected error occurred: {eccezione}")
+        # In a production environment, you might want to log the full traceback here 
+        # using the logging module to debug logic errors.
+
 def main():
     """Inizializza e avvia il bot in modalità polling."""
+    # Build the application
     application = Application.builder().token(TOKEN_TELEGRAM).build()
     
+    # Register command and message handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, processa_messaggio))
     
+    # --- NEW IMPLEMENTATION ---
+    # Register the custom error handler to catch NetworkErrors and other exceptions
+    application.add_error_handler(error_handler)
+    # --------------------------
+    
     log_console("Bot avviato e in ascolto...")
+    
+    # Start the polling loop. It handles reconnections automatically.
     application.run_polling()
 
 if __name__ == '__main__':
